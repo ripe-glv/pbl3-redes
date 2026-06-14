@@ -1,0 +1,90 @@
+services:
+  node-a:
+    build: ./backend
+    environment:
+      NODE_ID: node-a
+      PORT: 8000
+      PEERS: http://node-b:8000,http://node-c:8000
+      LEDGER_FILE: /data/ledger-node-a.json
+      STORAGE_DIR: /storage/node-a
+      POW_DIFFICULTY: 3
+      AUTO_MINE: "true"
+      AUTH_SECRET: sentinel-shared-auth-secret
+    ports:
+      - "8001:8000"
+    volumes:
+      - ledger-a:/data
+      - storage-a:/storage/node-a
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/node/status')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  node-b:
+    build: ./backend
+    environment:
+      NODE_ID: node-b
+      PORT: 8000
+      PEERS: http://node-a:8000,http://node-c:8000
+      LEDGER_FILE: /data/ledger-node-b.json
+      STORAGE_DIR: /storage/node-b
+      POW_DIFFICULTY: 3
+      AUTO_MINE: "true"
+      AUTH_SECRET: sentinel-shared-auth-secret
+    ports:
+      - "8002:8000"
+    volumes:
+      - ledger-b:/data
+      - storage-b:/storage/node-b
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/node/status')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  node-c:
+    build: ./backend
+    environment:
+      NODE_ID: node-c
+      PORT: 8000
+      PEERS: http://node-a:8000,http://node-b:8000
+      LEDGER_FILE: /data/ledger-node-c.json
+      STORAGE_DIR: /storage/node-c
+      POW_DIFFICULTY: 3
+      AUTO_MINE: "true"
+      AUTH_SECRET: sentinel-shared-auth-secret
+    ports:
+      - "8003:8000"
+    volumes:
+      - ledger-c:/data
+      - storage-c:/storage/node-c
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/node/status')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      node-a:
+        condition: service_healthy
+      node-b:
+        condition: service_healthy
+      node-c:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  ledger-a:
+  ledger-b:
+  ledger-c:
+  storage-a:
+  storage-b:
+  storage-c:
