@@ -1,0 +1,48 @@
+services:
+  node:
+    build: ./backend
+    environment:
+      NODE_ID: ${NODE_ID:?Defina NODE_ID, por exemplo node-a}
+      HOST: 0.0.0.0
+      PORT: 8000
+      PEERS: ${PEERS:?Defina PEERS com as URLs dos outros computadores}
+      LEDGER_FILE: /data/ledger.json
+      STORAGE_DIR: /storage
+      POW_DIFFICULTY: ${POW_DIFFICULTY:-3}
+      AUTO_MINE: ${AUTO_MINE:-true}
+      AUTH_SECRET: ${AUTH_SECRET:?Use o mesmo AUTH_SECRET em todos os computadores}
+      AUTH_SESSION_SECONDS: ${AUTH_SESSION_SECONDS:-28800}
+    ports:
+      - "${NODE_PORT:-8000}:8000"
+    volumes:
+      - node-ledger:/data
+      - node-storage:/storage
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/node/status')",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  frontend:
+    profiles: ["frontend"]
+    build:
+      context: ./frontend
+      args:
+        VITE_NODE_URLS: ${NODE_URLS:-}
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      node:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  node-ledger:
+  node-storage:

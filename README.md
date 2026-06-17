@@ -124,6 +124,141 @@ docker compose down -v
 docker compose up --build
 ```
 
+## Execução distribuída em vários computadores
+
+O arquivo `docker-compose.yml` continua sendo o modo rápido para executar os
+três nós no mesmo computador. Para demonstrar distribuição física, use
+`docker-compose.multi-pc.yml`: cada computador executa um nó com ledger e
+storage próprios e se comunica com os outros por seus endereços IP da rede
+local.
+
+### Topologia de exemplo
+
+| Computador | Endereço IP | Nó | Porta |
+|---|---|---|---|
+| PC A | `192.168.1.10` | `node-a` | `8000` |
+| PC B | `192.168.1.11` | `node-b` | `8000` |
+| PC C | `192.168.1.12` | `node-c` | `8000` |
+
+Os computadores precisam estar na mesma rede e conseguir acessar uns aos
+outros. Recomenda-se reservar os endereços IP no roteador para evitar que eles
+mudem durante a demonstração.
+
+### Opção 1: iniciar pelo script
+
+Copie o projeto para os três computadores e execute:
+
+No PC A, que também hospedará a interface:
+
+```powershell
+.\iniciar-multi-pc.ps1 `
+  -NodeId "node-a" `
+  -Peers "http://192.168.1.11:8000,http://192.168.1.12:8000" `
+  -AuthSecret "uma-chave-compartilhada-forte" `
+  -WithFrontend `
+  -NodeUrls "http://192.168.1.10:8000,http://192.168.1.11:8000,http://192.168.1.12:8000"
+```
+
+No PC B:
+
+```powershell
+.\iniciar-multi-pc.ps1 `
+  -NodeId "node-b" `
+  -Peers "http://192.168.1.10:8000,http://192.168.1.12:8000" `
+  -AuthSecret "uma-chave-compartilhada-forte"
+```
+
+No PC C:
+
+```powershell
+.\iniciar-multi-pc.ps1 `
+  -NodeId "node-c" `
+  -Peers "http://192.168.1.10:8000,http://192.168.1.11:8000" `
+  -AuthSecret "uma-chave-compartilhada-forte"
+```
+
+Todos os nós devem usar exatamente o mesmo `AUTH_SECRET`, pois uma sessão
+iniciada em um nó precisa ser reconhecida pelos outros. Cada nó deve possuir
+um `NODE_ID` diferente.
+
+A interface ficará disponível em:
+
+```text
+http://192.168.1.10:5173
+```
+
+Ela pode ser aberta por qualquer computador da rede. As URLs passadas em
+`NodeUrls` precisam ser endereços alcançáveis pelo navegador; não use
+`localhost`, pois ele apontaria para o computador de quem abriu a página.
+
+### Opção 2: iniciar com arquivo de ambiente
+
+Copie `.env.multi-pc.example` para `.env.multi-pc` em cada computador e ajuste
+`NODE_ID`, `PEERS` e os IPs:
+
+```powershell
+Copy-Item .env.multi-pc.example .env.multi-pc
+docker compose --env-file .env.multi-pc -f docker-compose.multi-pc.yml up --build -d
+```
+
+No computador que também hospedará a interface, inclua o perfil `frontend`:
+
+```powershell
+docker compose --env-file .env.multi-pc -f docker-compose.multi-pc.yml --profile frontend up --build -d
+```
+
+Para conferir a comunicação:
+
+```powershell
+Invoke-RestMethod http://192.168.1.10:8000/node/network
+Invoke-RestMethod http://192.168.1.11:8000/node/network
+Invoke-RestMethod http://192.168.1.12:8000/node/network
+```
+
+Cada resposta deve mostrar os outros dois peers como `online: true`.
+
+### Firewall do Windows
+
+Em um PowerShell executado como administrador, libere a API em cada
+computador:
+
+```powershell
+New-NetFirewallRule `
+  -DisplayName "Sentinel Ledger API" `
+  -Direction Inbound `
+  -Protocol TCP `
+  -LocalPort 8000 `
+  -Action Allow `
+  -Profile Private
+```
+
+No computador que executa o frontend, libere também:
+
+```powershell
+New-NetFirewallRule `
+  -DisplayName "Sentinel Ledger Frontend" `
+  -Direction Inbound `
+  -Protocol TCP `
+  -LocalPort 5173 `
+  -Action Allow `
+  -Profile Private
+```
+
+Use somente uma rede confiável marcada como `Privada`. O modo acadêmico usa
+HTTP sem TLS e não deve ser exposto diretamente à internet.
+
+Para parar o nó sem apagar seus dados:
+
+```powershell
+.\parar-multi-pc.ps1
+```
+
+Para apagar também o ledger e o storage persistidos naquele computador:
+
+```powershell
+docker compose --env-file .env.multi-pc -f docker-compose.multi-pc.yml down -v
+```
+
 ## Execução manual
 
 ### Backend
