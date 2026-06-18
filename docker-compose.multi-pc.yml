@@ -10,7 +10,6 @@ services:
       STORAGE_DIR: /storage
       POW_DIFFICULTY: ${POW_DIFFICULTY:-3}
       AUTO_MINE: ${AUTO_MINE:-true}
-      AUTH_SECRET: ${AUTH_SECRET:?Use o mesmo AUTH_SECRET em todos os computadores}
       AUTH_SESSION_SECONDS: ${AUTH_SESSION_SECONDS:-28800}
     ports:
       - "${NODE_PORT:-8000}:8000"

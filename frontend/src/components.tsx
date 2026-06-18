@@ -187,24 +187,30 @@ export function NodeStatusCard({ node }: { node: NodeStatus }) {
 export function LedgerBlockCard({
   block,
   selected,
+  compromised,
   onClick,
 }: {
   block: Block;
   selected: boolean;
+  compromised?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
-      className={`block-card ${selected ? "selected" : ""}`}
+      className={`block-card ${selected ? "selected" : ""} ${compromised ? "compromised" : ""}`}
       onClick={onClick}
     >
       <span className="block-index">#{block.index}</span>
       <span>
         <strong>{shortHash(block.hash)}</strong>
-        <small>{block.transactions.length} transações</small>
+        <small>
+          {compromised
+            ? "Hash divergente — conteúdo adulterado"
+            : `${block.transactions.length} transações`}
+        </small>
       </span>
-      <Badge tone={block.index === 0 ? "info" : "success"}>
-        {block.index === 0 ? "GÊNESE" : "POW"}
+      <Badge tone={compromised ? "danger" : block.index === 0 ? "info" : "success"}>
+        {compromised ? "COMPROMETIDO" : block.index === 0 ? "GÊNESE" : "POW"}
       </Badge>
     </button>
   );
@@ -677,11 +683,15 @@ export function DecryptMissionPanel({ result }: { result: unknown }) {
 
 export function AuditPanel({
   nodeUrl,
+  nodeUrls,
+  onNodeChange,
   missions,
   onResult,
   onRefresh,
 }: {
   nodeUrl: string;
+  nodeUrls: string[];
+  onNodeChange: (nodeUrl: string) => void;
   missions: Mission[];
   onResult: ActionProps["onResult"];
   onRefresh: () => void;
@@ -701,32 +711,51 @@ export function AuditPanel({
   ];
 
   return (
-    <div className="audit-grid">
-      {actions.map((action) => (
-        <button
-          key={action.label}
-          className={`audit-action ${action.tone}`}
-          onClick={async () => {
-            try {
-              const value =
-                action.method === "GET"
-                  ? await fetch(`${nodeUrl}${action.path}`).then(async (r) => {
-                      const body = await r.json();
-                      if (!r.ok) throw new Error(body.detail);
-                      return body;
-                    })
-                  : await post(nodeUrl, action.path, action.body ?? {});
-              onResult(action.label, value);
-              onRefresh();
-            } catch (error) {
-              onResult(action.label, String(error), true);
-            }
-          }}
-        >
-          <span>{action.label}</span>
-          <small>Executar no nó selecionado</small>
-        </button>
-      ))}
+    <div className="audit-controls">
+      <label className="audit-node-selector">
+        Nó alvo da auditoria
+        <select value={nodeUrl} onChange={(event) => onNodeChange(event.target.value)}>
+          {nodeUrls.map((url, index) => (
+            <option value={url} key={url}>
+              node-{String.fromCharCode(97 + index)} · {url}
+            </option>
+          ))}
+        </select>
+        <small>
+          Adulteração, verificação e reparo serão executados somente neste nó.
+        </small>
+      </label>
+      <div className="audit-target">
+        <Badge tone="warning">ALVO SELECIONADO</Badge>
+        <strong>{nodeUrl}</strong>
+      </div>
+      <div className="audit-grid">
+        {actions.map((action) => (
+          <button
+            key={action.label}
+            className={`audit-action ${action.tone}`}
+            onClick={async () => {
+              try {
+                const value =
+                  action.method === "GET"
+                    ? await fetch(`${nodeUrl}${action.path}`).then(async (r) => {
+                        const body = await r.json();
+                        if (!r.ok) throw new Error(body.detail);
+                        return body;
+                      })
+                    : await post(nodeUrl, action.path, action.body ?? {});
+                onResult(`${action.label} · ${nodeUrl}`, value);
+                onRefresh();
+              } catch (error) {
+                onResult(`${action.label} · ${nodeUrl}`, String(error), true);
+              }
+            }}
+          >
+            <span>{action.label}</span>
+            <small>Executar em {nodeUrl}</small>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,120 @@
+name: pbl3-redes-ganache
+
+services:
+  ganache:
+    image: trufflesuite/ganache:v7.9.2
+    command:
+      - --server.host
+      - 0.0.0.0
+      - --server.port
+      - "8545"
+      - --chain.chainId
+      - "1337"
+      - --wallet.mnemonic
+      - "test test test test test test test test test test test junk"
+      - --wallet.totalAccounts
+      - "10"
+      - --miner.blockTime
+      - "0"
+      - --database.dbPath
+      - /data
+    ports:
+      - "8545:8545"
+    volumes:
+      - evm-chain:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8545',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_chainId',params:[]})}).then(r=>{if(!r.ok)process.exit(1)})",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  deploy-contract:
+    build: ./evm
+    environment:
+      EVM_RPC_URL: http://ganache:8545
+      EVM_ARTIFACT_PATH: /shared/SentinelLedger.json
+    volumes:
+      - evm-artifacts:/shared
+    depends_on:
+      ganache:
+        condition: service_healthy
+
+  node-a:
+    build: ./backend
+    environment:
+      APP_MODULE: app.evm_main:app
+      NODE_ID: node-a
+      PORT: 8000
+      EVM_RPC_URL: http://ganache:8545
+      EVM_ARTIFACT_PATH: /evm/SentinelLedger.json
+      STORAGE_DIR: /storage/evm
+      AUTH_SECRET: sentinel-ganache-auth-secret
+    ports:
+      - "8011:8000"
+    volumes:
+      - evm-artifacts:/evm:ro
+      - evm-storage:/storage/evm
+    depends_on:
+      deploy-contract:
+        condition: service_completed_successfully
+
+  node-b:
+    build: ./backend
+    environment:
+      APP_MODULE: app.evm_main:app
+      NODE_ID: node-b
+      PORT: 8000
+      EVM_RPC_URL: http://ganache:8545
+      EVM_ARTIFACT_PATH: /evm/SentinelLedger.json
+      STORAGE_DIR: /storage/evm
+      AUTH_SECRET: sentinel-ganache-auth-secret
+    ports:
+      - "8012:8000"
+    volumes:
+      - evm-artifacts:/evm:ro
+      - evm-storage:/storage/evm
+    depends_on:
+      deploy-contract:
+        condition: service_completed_successfully
+
+  node-c:
+    build: ./backend
+    environment:
+      APP_MODULE: app.evm_main:app
+      NODE_ID: node-c
+      PORT: 8000
+      EVM_RPC_URL: http://ganache:8545
+      EVM_ARTIFACT_PATH: /evm/SentinelLedger.json
+      STORAGE_DIR: /storage/evm
+      AUTH_SECRET: sentinel-ganache-auth-secret
+    ports:
+      - "8013:8000"
+    volumes:
+      - evm-artifacts:/evm:ro
+      - evm-storage:/storage/evm
+    depends_on:
+      deploy-contract:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_NODE_URLS: http://localhost:8011,http://localhost:8012,http://localhost:8013
+    ports:
+      - "5183:80"
+    depends_on:
+      - node-a
+      - node-b
+      - node-c
+
+volumes:
+  evm-artifacts:
+  evm-chain:
+  evm-storage:

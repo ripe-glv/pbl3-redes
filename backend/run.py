@@ -1,3 +1,5 @@
+import os
+
 import uvicorn
 
 from app.config import get_settings
@@ -5,5 +7,5 @@ from app.config import get_settings
 
 if __name__ == "__main__":
     settings = get_settings()
-    uvicorn.run("app.main:app", host=settings.host, port=settings.port, reload=False)
-
+    app_module = os.getenv("APP_MODULE", "app.main:app")
+    uvicorn.run(app_module, host=settings.host, port=settings.port, reload=False)

@@ -4,7 +4,11 @@ const configuredNodes = (import.meta.env.VITE_NODE_URLS as string | undefined)
 
 export const NODE_URLS = configuredNodes?.length
   ? configuredNodes
-  : ["http://localhost:8001", "http://localhost:8002", "http://localhost:8003"];
+  : [
+      "http://172.16.103.7:8000",
+      "http://172.16.103.9:8000",
+      "http://172.16.103.10:8000",
+    ];
 
 export async function api<T>(
   baseUrl: string,

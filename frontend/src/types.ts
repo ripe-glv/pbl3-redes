@@ -95,3 +95,15 @@ export type NodeStatus = {
   chain_valid: boolean;
   url?: string;
 };
+
+export type ChainAudit = {
+  valid: boolean;
+  node_id: string;
+  details?: {
+    error?: string;
+    message?: string;
+    block_index?: number | null;
+    expected_hash?: string;
+    found_hash?: string;
+  } | null;
+};

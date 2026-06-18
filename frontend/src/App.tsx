@@ -21,6 +21,7 @@ import {
 import type {
   AuthCompany,
   Block,
+  ChainAudit,
   Company,
   Drone,
   Mission,
@@ -54,6 +55,7 @@ export default function App() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedBlock, setSelectedBlock] = useState<Block | null>(null);
+  const [chainAudit, setChainAudit] = useState<ChainAudit | null>(null);
   const [accessToken, setAccessToken] = useState(
     () => window.localStorage.getItem("sentinel_access_token") ?? "",
   );
@@ -93,7 +95,7 @@ export default function App() {
     );
     setStatuses(nodeResults);
     try {
-      const [companyData, walletData, droneData, missionData, blockData, txData] =
+      const [companyData, walletData, droneData, missionData, blockData, txData, auditData] =
         await Promise.all([
           api<Company[]>(nodeUrl, "/companies"),
           api<Wallet[]>(nodeUrl, "/wallets"),
@@ -101,6 +103,7 @@ export default function App() {
           api<Mission[]>(nodeUrl, "/missions"),
           api<Block[]>(nodeUrl, "/blocks"),
           api<Transaction[]>(nodeUrl, "/transactions"),
+          api<ChainAudit>(nodeUrl, "/audit/verify-chain"),
         ]);
       setCompanies(companyData);
       setWallets(walletData);
@@ -108,6 +111,7 @@ export default function App() {
       setMissions(missionData);
       setBlocks(blockData);
       setTransactions(txData);
+      setChainAudit(auditData);
       setSelectedBlock((current) =>
         current ? blockData.find((item) => item.index === current.index) ?? blockData[0] : blockData[0],
       );
@@ -255,11 +259,29 @@ export default function App() {
 
           {section === "ledger" && (
             <div className="explorer-layout">
-              <Panel title="Blocos confirmados" eyebrow={`${blocks.length} BLOCOS`}>
-                <div className="block-list">{blocks.map((block) => <LedgerBlockCard block={block} selected={selectedBlock?.index === block.index} onClick={() => setSelectedBlock(block)} key={block.hash} />)}</div>
+              <Panel
+                title="Blocos confirmados"
+                eyebrow={
+                  chainAudit === null
+                    ? `${blocks.length} BLOCOS`
+                    : chainAudit.valid
+                      ? `${blocks.length} BLOCOS · ÍNTEGRO`
+                      : `${blocks.length} BLOCOS · CADEIA COMPROMETIDA`
+                }
+              >
+                <div className="block-list">{blocks.map((block) => <LedgerBlockCard block={block} selected={selectedBlock?.index === block.index} compromised={!chainAudit?.valid && chainAudit?.details?.block_index === block.index} onClick={() => setSelectedBlock(block)} key={block.hash} />)}</div>
               </Panel>
               <Panel title={selectedBlock ? `Bloco #${selectedBlock.index}` : "Selecione um bloco"} eyebrow="DETALHES CRIPTOGRÁFICOS">
                 {selectedBlock && <div className="block-detail">
+                  {!chainAudit?.valid && chainAudit?.details?.block_index === selectedBlock.index && (
+                    <div className="block-integrity-alert">
+                      <Badge tone="danger">BLOCO COMPROMETIDO</Badge>
+                      <strong>{chainAudit.details.error ?? "Falha de integridade detectada."}</strong>
+                      <p>O conteúdo atual não produz o hash registrado. Esta cópia da cadeia deve ser rejeitada ou reparada pelos peers.</p>
+                      {chainAudit.details.expected_hash && <code>calculado: {chainAudit.details.expected_hash}</code>}
+                      {chainAudit.details.found_hash && <code>registrado: {chainAudit.details.found_hash}</code>}
+                    </div>
+                  )}
                   <dl>
                     <div><dt>Hash</dt><dd><code>{selectedBlock.hash}</code></dd></div>
                     <div><dt>Hash anterior</dt><dd><code>{selectedBlock.previous_hash}</code></dd></div>
@@ -308,7 +330,7 @@ export default function App() {
 
           {section === "audit" && (
             <>
-              <Panel title="Controles de integridade" eyebrow="ADULTERAÇÃO E RECUPERAÇÃO"><AuditPanel nodeUrl={nodeUrl} missions={missions} onResult={addLog} onRefresh={() => void refresh()} /></Panel>
+              <Panel title="Controles de integridade" eyebrow="ADULTERAÇÃO E RECUPERAÇÃO"><AuditPanel nodeUrl={nodeUrl} nodeUrls={NODE_URLS} onNodeChange={setNodeUrl} missions={missions} onResult={addLog} onRefresh={() => void refresh()} /></Panel>
               <Panel title="Resultado da última operação" eyebrow="EVIDÊNCIA TÉCNICA"><DecryptMissionPanel result={logs[0]?.value} /></Panel>
             </>
           )}

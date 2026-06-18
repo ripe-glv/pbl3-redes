@@ -67,6 +67,67 @@ O principal trade-off é privilegiar clareza didática sobre desempenho. A
 solução demonstra propriedades fundamentais de um ledger distribuído, mas não
 pretende substituir uma blockchain de produção com milhares de validadores.
 
+## Versão Ethereum local com Ganache
+
+O repositório também possui um segundo modo de execução no qual a blockchain
+própria é substituída por uma rede Ethereum local do Ganache. Nesse modo:
+
+- créditos, pagamentos, alocação de drones e provas de laudos são controlados
+  pelo smart contract `evm/contracts/SentinelLedger.sol`;
+- contas Ethereum fornecidas pelo Ganache representam as três companhias;
+- o backend usa `web3.py` para enviar transações e consultar eventos;
+- o frontend consulta blocos e transações reais da rede EVM;
+- laudos completos continuam criptografados off-chain;
+- somente hashes, ponteiros e metadados públicos são gravados no contrato.
+
+Arquitetura:
+
+```text
+React ──HTTP──> FastAPI ──JSON-RPC──> Ganache
+                   │                     │
+                   │                     └── SentinelLedger.sol
+                   └── storage off-chain criptografado
+```
+
+Para iniciar esse modo:
+
+```powershell
+docker compose -f docker-compose.ganache.yml up --build
+```
+
+Acessos:
+
+- interface: <http://localhost:5183>
+- node-a EVM: <http://localhost:8011/docs>
+- node-b EVM: <http://localhost:8012/docs>
+- node-c EVM: <http://localhost:8013/docs>
+- JSON-RPC do Ganache: <http://localhost:8545>
+
+O serviço `deploy-contract` compila e publica o contrato automaticamente antes
+de iniciar os três nós FastAPI. Os três consultam o mesmo smart contract e a
+mesma rede Ganache, portanto qualquer transação enviada por um deles aparece
+imediatamente nos outros. Eles também compartilham o volume de laudos
+criptografados, permitindo trocar o nó selecionado na interface.
+
+Nesse modo, `node-a`, `node-b` e `node-c` são três gateways/API da aplicação,
+não três validadores Ethereum independentes. O Ganache é o único nó da rede
+EVM. Para recriar a rede, o contrato e o armazenamento:
+
+```powershell
+docker compose -f docker-compose.ganache.yml down -v
+docker compose -f docker-compose.ganache.yml up --build
+```
+
+O modo original continua disponível com `docker-compose.yml`. Ele é mais
+adequado para demonstrar a implementação de hash, nonce, Proof of Work,
+mempool, propagação e resolução de forks. O modo Ganache é mais adequado para
+demonstrar contratos inteligentes, ABI, gas, eventos e integração com uma
+rede compatível com Ethereum.
+
+> Ganache e Truffle foram descontinuados pela Consensys. Este modo existe para
+> comparação acadêmica e compatibilidade com o ambiente solicitado. Em um
+> projeto novo, Hardhat Network ou Anvil seriam alternativas mais atuais.
+
 ## Execução com Docker
 
 Pré-requisitos: Docker Desktop com Docker Compose.
@@ -136,9 +197,9 @@ local.
 
 | Computador | Endereço IP | Nó | Porta |
 |---|---|---|---|
-| PC A | `192.168.1.10` | `node-a` | `8000` |
-| PC B | `192.168.1.11` | `node-b` | `8000` |
-| PC C | `192.168.1.12` | `node-c` | `8000` |
+| PC A | `172.16.103.7` | `node-a` + frontend | `8000` + `5173` |
+| PC B | `172.16.103.9` | `node-b` | `8000` |
+| PC C | `172.16.103.10` | `node-c` | `8000` |
 
 Os computadores precisam estar na mesma rede e conseguir acessar uns aos
 outros. Recomenda-se reservar os endereços IP no roteador para evitar que eles
@@ -146,45 +207,22 @@ mudem durante a execução.
 
 ### Opção 1: iniciar pelo script
 
-Copie o projeto para os três computadores e execute:
+Copie o projeto para os três computadores. O script identifica automaticamente
+se o computador usa o IP `172.16.103.7`, `172.16.103.9` ou `172.16.103.10`,
+configura os outros dois como peers e inicia o frontend somente no `.7`.
 
-No PC A, que também hospedará a interface:
-
-```powershell
-.\iniciar-multi-pc.ps1 `
-  -NodeId "node-a" `
-  -Peers "http://192.168.1.11:8000,http://192.168.1.12:8000" `
-  -AuthSecret "uma-chave-compartilhada-forte" `
-  -WithFrontend `
-  -NodeUrls "http://192.168.1.10:8000,http://192.168.1.11:8000,http://192.168.1.12:8000"
-```
-
-No PC B:
+Execute o mesmo comando nos três PCs:
 
 ```powershell
-.\iniciar-multi-pc.ps1 `
-  -NodeId "node-b" `
-  -Peers "http://192.168.1.10:8000,http://192.168.1.12:8000" `
-  -AuthSecret "uma-chave-compartilhada-forte"
+.\iniciar-multi-pc.ps1
 ```
 
-No PC C:
-
-```powershell
-.\iniciar-multi-pc.ps1 `
-  -NodeId "node-c" `
-  -Peers "http://192.168.1.10:8000,http://192.168.1.11:8000" `
-  -AuthSecret "uma-chave-compartilhada-forte"
-```
-
-Todos os nós devem usar exatamente o mesmo `AUTH_SECRET`, pois uma sessão
-iniciada em um nó precisa ser reconhecida pelos outros. Cada nó deve possuir
-um `NODE_ID` diferente.
+O script associa `.7` a `node-a`, `.9` a `node-b` e `.10` a `node-c`.
 
 A interface ficará disponível em:
 
 ```text
-http://192.168.1.10:5173
+http://172.16.103.7:5173
 ```
 
 Ela pode ser aberta por qualquer computador da rede. As URLs passadas em
@@ -210,9 +248,9 @@ docker compose --env-file .env.multi-pc -f docker-compose.multi-pc.yml --profile
 Para conferir a comunicação:
 
 ```powershell
-Invoke-RestMethod http://192.168.1.10:8000/node/network
-Invoke-RestMethod http://192.168.1.11:8000/node/network
-Invoke-RestMethod http://192.168.1.12:8000/node/network
+Invoke-RestMethod http://172.16.103.7:8000/node/network
+Invoke-RestMethod http://172.16.103.9:8000/node/network
+Invoke-RestMethod http://172.16.103.10:8000/node/network
 ```
 
 Cada resposta deve mostrar os outros dois peers como `online: true`.

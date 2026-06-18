@@ -4,4 +4,4 @@ httpx==0.28.1
 cryptography==44.0.3
 pydantic==2.11.4
 pytest==8.3.5
-
+web3==7.13.0
