@@ -22,6 +22,7 @@ class PeerNetwork:
             return False
 
     async def propagate_transaction(self, tx: Transaction) -> dict[str, bool]:
+        # Each peer validates the transaction independently on receipt.
         peers = sorted(self.ledger.peers)
         results = await asyncio.gather(
             *(self._post(peer, "/receive-transaction", tx.model_dump()) for peer in peers)
@@ -56,6 +57,8 @@ class PeerNetwork:
         return await asyncio.gather(*(fetch(peer) for peer in sorted(self.ledger.peers)))
 
     async def resolve_conflicts(self) -> dict[str, Any]:
+        # No master node decides the winner: the local node fetches candidate
+        # chains and applies the ledger's deterministic best-valid-chain rule.
         candidates: list[tuple[str, list[Block]]] = []
         for peer in sorted(self.ledger.peers):
             try:
@@ -82,4 +85,3 @@ class PeerNetwork:
             "source": source,
             "height": len(self.ledger.chain) - 1,
         }
-

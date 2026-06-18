@@ -49,6 +49,8 @@ class MissionStorage:
         )
 
     def verify(self, mission_id: str, registered_hash: str) -> dict[str, Any]:
+        # Verification is public: comparing ciphertext hashes does not require
+        # decrypting or exposing the confidential report.
         try:
             content = self.read_encrypted(mission_id)
         except FileNotFoundError as exc:
@@ -76,4 +78,3 @@ class MissionStorage:
         if not path.exists():
             raise FileNotFoundError("Arquivo off-chain não encontrado.")
         path.write_text(path.read_text(encoding="utf-8") + "\nTAMPERED", encoding="utf-8")
-

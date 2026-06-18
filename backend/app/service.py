@@ -80,6 +80,8 @@ class ApplicationService:
             payload,
         )
         async with self.operation_lock:
+            # Payment and dispatch are placed in the same block, in this order.
+            # The API only returns DISPATCHED after that block is mined.
             accepted, message = self.ledger.add_transaction(tx)
             if not accepted:
                 raise ValueError(message)
@@ -180,6 +182,8 @@ class ApplicationService:
         stored = self.storage.save(
             mission_id, report, wallet["encryption_public_key"]
         )
+        # Peers replicate ciphertext; only public metadata and integrity hashes
+        # are recorded in the blockchain transaction below.
         await self.network.replicate_file(mission_id, stored["encrypted_file"])
         complete_tx = self.ledger.create_signed_transaction(
             request.company_id,

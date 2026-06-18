@@ -95,6 +95,8 @@ def _derive_wrap_key(shared_secret: bytes) -> bytes:
 
 
 def encrypt_for_wallet(report: dict[str, Any], recipient_public_key: str) -> dict[str, str]:
+    # Hybrid encryption keeps large report data under a random AES key and
+    # wraps that key for the mission owner's X25519 public key.
     plaintext = canonical_json(report)
     data_key = AESGCM.generate_key(bit_length=256)
     data_nonce = __import__("os").urandom(12)
@@ -138,4 +140,3 @@ def decrypt_for_wallet(encrypted_file: str, recipient_private_key: str) -> dict[
         unb64(envelope["data_nonce"]), unb64(envelope["ciphertext"]), None
     )
     return json.loads(plaintext)
-

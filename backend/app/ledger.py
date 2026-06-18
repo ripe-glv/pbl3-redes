@@ -46,6 +46,8 @@ class Ledger:
         self._load_or_initialize()
 
     def _genesis_block(self) -> Block:
+        # Every node builds the exact same genesis so independent chains share
+        # the same initial credit ownership and first hash.
         transactions = []
         for company_id in sorted(self.wallets):
             wallet = self.wallets[company_id]
@@ -111,6 +113,8 @@ class Ledger:
         return ids
 
     def balance(self, address: str, include_pending: bool = False) -> int:
+        # Balance is reconstructed from transaction history. It is never stored
+        # as an authoritative mutable field outside the ledger.
         balance = 0
         transactions = self.confirmed_transactions()
         if include_pending:
@@ -176,6 +180,8 @@ class Ledger:
             return valid, error
         prior = prior_in_block or []
         if tx.type in {"TRANSFER_CREDIT", "ESCORT_PAYMENT"}:
+            # Pending debits count against available funds, closing the window
+            # where concurrent requests could spend the same confirmed balance.
             available = self.balance(tx.sender, include_pending=include_mempool)
             for item in prior:
                 if item.sender == tx.sender:
@@ -255,6 +261,8 @@ class Ledger:
         return tx
 
     def _proof_of_work(self, candidate: Block) -> Block:
+        # Low difficulty is intentional for a classroom demonstration while
+        # still making every accepted block prove computational work.
         prefix = "0" * self.difficulty
         while True:
             candidate.hash = block_hash(candidate)
@@ -267,6 +275,8 @@ class Ledger:
             if not self.mempool:
                 raise ValueError("Não há transações pendentes.")
             valid_transactions: list[Transaction] = []
+            # Mempool acceptance is not final: every transaction is replayed
+            # against confirmed state before it enters a mined block.
             for tx in list(self.mempool):
                 valid, _ = self.validate_transaction(
                     tx, include_mempool=False, prior_in_block=valid_transactions
@@ -310,6 +320,8 @@ class Ledger:
         mission_owners: dict[str, str] = {}
         completed_missions: set[str] = set()
         for index, block in enumerate(target):
+            # Content hash, PoW and previous_hash jointly reveal any edit to a
+            # block or to the ordering of the chain.
             expected_hash = block_hash(block)
             if block.hash != expected_hash:
                 return False, {
@@ -418,6 +430,8 @@ class Ledger:
             local_valid, _ = self.validate_chain(self.chain)
             candidate_score = (len(chain), -int(chain[-1].hash, 16))
             local_score = (len(self.chain), -int(self.chain[-1].hash, 16))
+            # Prefer a longer valid chain. Equal heights use the tip hash as a
+            # deterministic tie-break so all peers eventually choose one fork.
             if not valid or (local_valid and candidate_score <= local_score):
                 return False
             self.chain = copy.deepcopy(chain)
