@@ -229,72 +229,52 @@ Ela pode ser aberta por qualquer computador da rede. As URLs passadas em
 `NodeUrls` precisam ser endereços alcançáveis pelo navegador; não use
 `localhost`, pois ele apontaria para o computador de quem abriu a página.
 
-### Opção 2: iniciar com arquivo de ambiente
+### Opção 2: arquivos de ambiente prontos (Linux)
 
-Copie `.env.multi-pc.example` para `.env.multi-pc` em cada computador e ajuste
-`NODE_ID`, `PEERS` e os IPs:
+Os três arquivos já estão preenchidos na raiz do projeto. Em cada computador,
+execute somente o comando correspondente.
 
-```powershell
-Copy-Item .env.multi-pc.example .env.multi-pc
-docker compose --env-file .env.multi-pc -f docker-compose.multi-pc.yml up --build -d
+No PC `172.16.103.7`:
+
+```bash
+docker compose --env-file .env.pc-172.16.103.7 -f docker-compose.multi-pc.yml up --build -d
 ```
 
-No computador que também hospedará a interface, inclua o perfil `frontend`:
+No PC `172.16.103.9`:
 
-```powershell
-docker compose --env-file .env.multi-pc -f docker-compose.multi-pc.yml --profile frontend up --build -d
+```bash
+docker compose --env-file .env.pc-172.16.103.9 -f docker-compose.multi-pc.yml up --build -d
 ```
+
+No PC `172.16.103.10`:
+
+```bash
+docker compose --env-file .env.pc-172.16.103.10 -f docker-compose.multi-pc.yml up --build -d
+```
+
+O arquivo do `.7` ativa o frontend automaticamente. Os outros dois iniciam
+somente o peer local.
 
 Para conferir a comunicação:
 
-```powershell
-Invoke-RestMethod http://172.16.103.7:8000/node/network
-Invoke-RestMethod http://172.16.103.9:8000/node/network
-Invoke-RestMethod http://172.16.103.10:8000/node/network
+```bash
+curl http://172.16.103.7:8000/node/network
+curl http://172.16.103.9:8000/node/network
+curl http://172.16.103.10:8000/node/network
 ```
 
 Cada resposta deve mostrar os outros dois peers como `online: true`.
 
-### Firewall do Windows
+Para parar sem apagar os dados, troque o nome do env conforme o PC:
 
-Em um PowerShell executado como administrador, libere a API em cada
-computador:
-
-```powershell
-New-NetFirewallRule `
-  -DisplayName "Sentinel Ledger API" `
-  -Direction Inbound `
-  -Protocol TCP `
-  -LocalPort 8000 `
-  -Action Allow `
-  -Profile Private
-```
-
-No computador que executa o frontend, libere também:
-
-```powershell
-New-NetFirewallRule `
-  -DisplayName "Sentinel Ledger Frontend" `
-  -Direction Inbound `
-  -Protocol TCP `
-  -LocalPort 5173 `
-  -Action Allow `
-  -Profile Private
-```
-
-Use somente uma rede confiável marcada como `Privada`. O modo acadêmico usa
-HTTP sem TLS e não deve ser exposto diretamente à internet.
-
-Para parar o nó sem apagar seus dados:
-
-```powershell
-.\parar-multi-pc.ps1
+```bash
+docker compose --env-file .env.pc-172.16.103.7 -f docker-compose.multi-pc.yml down
 ```
 
 Para apagar também o ledger e o storage persistidos naquele computador:
 
-```powershell
-docker compose --env-file .env.multi-pc -f docker-compose.multi-pc.yml down -v
+```bash
+docker compose --env-file .env.pc-172.16.103.7 -f docker-compose.multi-pc.yml down -v
 ```
 
 ## Execução manual
